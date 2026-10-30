@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Desk-Cooler – Interaktiver Simulator</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #0b0f19; color: #f1f5f9; padding: 24px 16px; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 520px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .header h1 { font-size: 1.35rem; font-weight: 700; color: #38bdf8; }
+        .status-pill { background: #1e293b; padding: 5px 12px; border-radius: 9999px; font-size: 0.75rem; border: 1px solid #22c55e; color: #4ade80; font-weight: 600; }
+        
+        .mode-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #1e293b; padding: 4px; border-radius: 12px; margin-bottom: 20px; }
+        .mode-btn { padding: 12px; border: none; background: transparent; color: #94a3b8; font-weight: 600; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+        .mode-btn.active { background: #0284c7; color: #fff; }
+
+        .section-label { font-size: 0.8rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+        .metric-card { background: #131d2e; border: 1px solid #1e293b; border-radius: 12px; padding: 14px; }
+        .metric-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }
+        .metric-value { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
+        .metric-sub { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+
+        .slider-box { background: #131d2e; border: 1px solid #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+        .slider-group { margin-bottom: 14px; }
+        .slider-group:last-child { margin-bottom: 0; }
+        .slider-group label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px; color: #cbd5e1; }
+        .slider-group span.val { color: #38bdf8; font-weight: 700; }
+        input[type=range] { width: 100%; height: 6px; border-radius: 3px; background: #334155; outline: none; -webkit-appearance: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+
+        .oled-container { background: #000; border: 2px solid #334155; border-radius: 10px; padding: 14px; font-family: "Courier New", Courier, monospace; font-size: 0.85rem; line-height: 1.45; color: #38bdf8; margin-bottom: 20px; box-shadow: inset 0 0 10px rgba(56, 189, 248, 0.15); }
+        .oled-line { white-space: pre; }
+
+        .toggle-btn { width: 100%; padding: 12px; border: 1px solid #334155; border-radius: 8px; font-weight: 600; font-size: 0.9rem; background: #1e293b; color: #94a3b8; cursor: pointer; transition: 0.2s; }
+        .toggle-btn.on { background: #0284c7; color: #fff; border-color: #38bdf8; }
+        .alert-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>Smart Desk-Cooler</h1>
+            <div class="status-pill">SIMULATOR AKTIV</div>
+        </div>
+
+        <div class="mode-toggle">
+            <button class="mode-btn active" id="btn-auto" onclick="switchMode('auto')">Automatik</button>
+            <button class="mode-btn" id="btn-manual" onclick="switchMode('manual')">Manuell / App</button>
+        </div>
+
+        <div class="section-label">1. Sensoren & Umgebung (Simuliert)</div>
+        <div class="slider-box">
+            <div class="slider-group">
+                <label><span>Raumtemperatur (DHT22)</span><span class="val" id="disp-temp">25.0 °C</span></label>
+                <input type="range" id="sim-temp" min="18" max="34" step="0.5" value="25" oninput="runSim()">
+            </div>
+            <div class="slider-group">
+                <label><span>Luftfeuchtigkeit (DHT22)</span><span class="val" id="disp-hum">56 %</span></label>
+                <input type="range" id="sim-hum" min="30" max="85" step="1" value="56" oninput="runSim()">
+            </div>
+            <div class="slider-group">
+                <label><span>Schreibtisch-Abstand (HC-SR04P)</span><span class="val" id="disp-dist">50 cm</span></label>
+                <input type="range" id="sim-dist" min="10" max="150" step="5" value="50" oninput="runSim()">
+            </div>
+        </div>
+
+        <div class="section-label">2. Aktuelle System-Werte</div>
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Präsenz-Status</div>
+                <div class="metric-value" id="val-presence">Anwesend</div>
+                <div class="metric-sub" id="val-presence-sub">Abstand &le; 80 cm</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Lüfter-Leistung</div>
+                <div class="metric-value" id="val-fan">70 %</div>
+                <div class="metric-sub" id="val-rpm">ca. 1260 RPM</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Ultraschall-Nebler</div>
+                <div class="metric-value" id="val-mist">EIN</div>
+                <div class="metric-sub">113 kHz Piezo</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Tropenhaus-Sperre</div>
+                <div class="metric-value" id="val-lock">Inaktiv</div>
+                <div class="metric-sub">Sperre ab 65% rF</div>
+            </div>
+        </div>
+
+        <div id="manual-box" style="display: none; margin-bottom: 20px;">
+            <div class="section-label">3. App / Manuelle Steuerung</div>
+            <div class="slider-box">
+                <div class="slider-group">
+                    <label><span>Manuelle Lüfter-Leistung</span><span class="val" id="disp-man-fan">70 %</span></label>
+                    <input type="range" id="man-fan" min="0" max="100" value="70" oninput="runSim()">
+                </div>
+                <button class="toggle-btn on" id="man-mist-btn" onclick="toggleManMist()">Nebler: EIN</button>
+            </div>
+        </div>
+
+        <div class="section-label">4. Physisches 0.96" OLED Display (128x64)</div>
+        <div class="oled-container">
+            <div class="oled-line" id="oled-1">MODUS: AUTO   DTST: 50cm [DA]</div>
+            <div class="oled-line">--------------------------------</div>
+            <div class="oled-line" id="oled-2">KLIMA: 25.0C | 56% rF</div>
+            <div class="oled-line" id="oled-3">LUEFTER(PWM): 70% (1260)</div>
+            <div class="oled-line" id="oled-4">NEBLER(MOSF): EIN</div>
+            <div class="oled-line">--------------------------------</div>
+            <div class="oled-line" id="oled-5">SMART-KUEHLUNG AKTIV</div>
+        </div>
+        <div class="alert-box" id="tropen-alert">Tropenhaus-Sperre aktiv (>65% rF)! Nebler zwangsabgeschaltet.</div>
+    </div>
+
+    <script>
+        let mode = 'auto';
+        let manMist = true;
+
+        function switchMode(m) {
+            mode = m;
+            document.getElementById('btn-auto').classList.toggle('active', m === 'auto');
+            document.getElementById('btn-manual').classList.toggle('active', m === 'manual');
+            document.getElementById('manual-box').style.display = m === 'manual' ? 'block' : 'none';
+            runSim();
+        }
+
+        function toggleManMist() {
+            manMist = !manMist;
+            const btn = document.getElementById('man-mist-btn');
+            btn.classList.toggle('on', manMist);
+            btn.innerText = manMist ? 'Nebler: EIN' : 'Nebler: AUS';
+            runSim();
+        }
+
+        function runSim() {
+            const temp = parseFloat(document.getElementById('sim-temp').value);
+            const hum = parseInt(document.getElementById('sim-hum').value);
+            const dist = parseInt(document.getElementById('sim-dist').value);
+
+            document.getElementById('disp-temp').innerText = temp.toFixed(1) + ' °C';
+            document.getElementById('disp-hum').innerText = hum + ' %';
+            document.getElementById('disp-dist').innerText = dist + ' cm';
+
+            const present = dist <= 80;
+            const tropenLock = hum > 65;
+
+            document.getElementById('val-presence').innerText = present ? 'Anwesend' : 'Abwesend';
+            document.getElementById('val-presence-sub').innerText = present ? 'Abstand <= 80 cm' : 'Standby (> 80 cm)';
+            document.getElementById('val-lock').innerText = tropenLock ? 'AKTIV' : 'Inaktiv';
+            document.getElementById('val-lock').style.color = tropenLock ? '#f87171' : '#f8fafc';
+            document.getElementById('tropen-alert').style.display = tropenLock ? 'block' : 'none';
+
+            let fanPwm = 0;
+            let mistActive = false;
+            let statusText = '';
+
+            if (mode === 'auto') {
+                if (!present) {
+                    fanPwm = 0;
+                    mistActive = false;
+                    statusText = 'STANDBY (NIEMAND DA)';
+                } else if (temp < 22) {
+                    fanPwm = 0;
+                    mistActive = false;
+                    statusText = 'TEMPERATUR < 22C (AUS)';
+                } else if (temp >= 22 && temp <= 25) {
+                    fanPwm = 50;
+                    mistActive = !tropenLock;
+                    statusText = tropenLock ? 'TROPEN-SPERRE (>65%)' : 'SMART-KUEHLUNG AKTIV';
+                } else {
+                    fanPwm = Math.min(100, Math.round(80 + (temp - 25) * 4));
+                    mistActive = !tropenLock;
+                    statusText = tropenLock ? 'TROPEN-SPERRE (>65%)' : 'BOOST-KUEHLUNG AKTIV';
+                }
+            } else {
+                fanPwm = parseInt(document.getElementById('man-fan').value);
+                document.getElementById('disp-man-fan').innerText = fanPwm + ' %';
+                mistActive = manMist && !tropenLock;
+                statusText = tropenLock ? 'TROPEN-SPERRE (>65%)' : 'MANUELL / APP-STEUERUNG';
+            }
+
+            const rpm = Math.round((fanPwm * 1800) / 100);
+            document.getElementById('val-fan').innerText = fanPwm + ' %';
+            document.getElementById('val-rpm').innerText = fanPwm < 5 ? '0 RPM (0-dB Modus)' : 'ca. ' + rpm + ' RPM';
+            document.getElementById('val-mist').innerText = mistActive ? 'EIN' : 'AUS';
+
+            // OLED Rendering
+            document.getElementById('oled-1').innerText = (mode === 'auto' ? 'MODUS: AUTO   ' : 'MODUS: MANUELL') + 'DTST: ' + dist + 'cm ' + (present ? '[DA]' : '[WFG]');
+            document.getElementById('oled-2').innerText = 'KLIMA: ' + temp.toFixed(1) + 'C | ' + hum + '% rF';
+            document.getElementById('oled-3').innerText = 'LUEFTER(PWM): ' + fanPwm + '% (' + rpm + ')';
+            document.getElementById('oled-4').innerText = 'NEBLER(MOSF): ' + (tropenLock ? 'SPERRE' : (mistActive ? 'EIN' : 'AUS'));
+            document.getElementById('oled-5').innerText = statusText;
+        }
+
+        runSim();
+    </script>
+</body>
+</html>
