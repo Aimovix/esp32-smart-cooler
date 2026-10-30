@@ -1,18 +1,16 @@
-# ESP32 Smart Desk-Cooler (MINT-Projekt)
+# ESP32 Smart Ice-Box AC (MINT-Klassenraum-Edition)
 
-Ein intelligenter persönlicher Schreibtisch-Verdunstungskühler (Personal Spot-Cooler), gesteuert durch ein ESP32 NodeMCU Board mit integrierter Web-App, OLED-Statusanzeige und adaptiver Sensor-Regelung.
+Eine mobile 12V-Klimabox (Wärmetauscher) für den Klassenraum, gesteuert durch ein ESP32 NodeMCU Board mit 5 kaskadierten Arctic P12 PWM PST Lüftern, doppelter DHT22-Temperaturmessung, Live-Kälteleistungsberechnung in Watt und integrierter Web-App.
 
 ---
 
-## Features
+## Kühlprinzip & Thermodynamik
 
-* **Automatische Temperatur- & Feuchteregelung:** Passt die Lüfterdrehzahl stufenlos an und schaltet den Kaltwasser-Nebel bei Bedarf zu.
-* **Tropenhaus-Sperre:** Schaltet den Ultraschall-Zerstäuber ab einer relativen Luftfeuchtigkeit von >65 % automatisch ab, um Schwüle und Kondenswasser auf dem Schreibtisch zu verhindern (Hysterese reaktiviert bei $\le$60 %).
-* **Ultraschall-Präsenzerkennung (Radar):** Geht in den stromsparenden Standby-Modus (0 RPM, Nebler aus), wenn der Nutzer länger als 2 Minuten abwesend ist (>80 cm Abstand).
-* **Dual-Steuerung (Web-App & Hardware-Taster):**
-  * Eigener WLAN-Hotspot (`SmartCooler-MINT`) liefert eine responsive Dark-Mode Web-App aus (völlig unabhängig von externem WLAN).
-  * Hardware-Taster am Gehäuse zum Durchschalten von 4 Profilen (*Smart-Auto* &rarr; *Lüfter 50 %* &rarr; *Max Boost 100 %* &rarr; *Aus*).
-* **0.96" I2C OLED Display:** Zeigt Live-Messwerte, Drehzahl, Modus und Betriebszustand direkt am Gerät an.
+* **Trockene Kälteleistung (ca. 250–350 Watt):** 5 Lüfter (bis zu 475 m³/h Durchsatz) pressen warme Raumluft durch eine isolierte Thermobox (40–60 L) mit 6 bis 8 tiefgefrorenen 1,5L-PET-Flaschen (mit Salz-Zusatz).
+* **Kein Feuchte-Anstieg (Kein Sauna-Effekt):** Die Raumluft wird nicht befeuchtet. Stattdessen kondensiert schwüle Raumfeuchte an den kalten Flaschenoberflächen und wird in der Wanne gesammelt.
+* **Live-Thermodynamik (MINT-Highlight):** Zwei DHT22-Sensoren erfassen $T_{\text{Einlass}}$ und $T_{\text{Auslass}}$. Der ESP32 berechnet in Echtzeit die Kälteleistung in Watt:
+  $$P = \dot{m} \cdot c_p \cdot (T_{\text{Einlass}} - T_{\text{Auslass}})$$
+* **Automatische Eis-Leer-Erkennung:** Fällt die Temperaturdifferenz $\Delta T$ bei laufendem Lüfter unter 1,0 K, warnt das OLED-Display und die Web-App: *„Eis geschmolzen – Flaschen wechseln!“*.
 
 ---
 
@@ -21,15 +19,15 @@ Ein intelligenter persönlicher Schreibtisch-Verdunstungskühler (Personal Spot-
 | Komponente | Signal / Pin | ESP32 GPIO | Betriebsspannung |
 | :--- | :--- | :--- | :--- |
 | **0.96" I2C OLED** | SDA / SCL | **GPIO 21 / GPIO 22** | 3,3V (ESP32 3V3) |
-| **DHT22 Sensor** | DATA | **GPIO 4** | 3,3V (ESP32 3V3) |
-| **HC-SR04P Sensor** | TRIG / ECHO | **GPIO 5 / GPIO 18** | 3,3V (ESP32 3V3) |
-| **Arctic P12 PWM Lüfter** | PWM (Pin 4, Blau) | **GPIO 19** | 12V (Netzteil direkt) |
-| **D4184 / LR7843 MOSFET** | Gate | **GPIO 23** | 3,3V Steuersignal |
-| **5V-Piezo-Zerstäuber** | VCC / GND | Über MOSFET geschaltet | 5,0V (LM2596 Ausgang) |
+| **DHT22 #1 (Einlass)** | DATA | **GPIO 4** | 3,3V (ESP32 3V3) |
+| **DHT22 #2 (Auslass)** | DATA | **GPIO 16** | 3,3V (ESP32 3V3) |
+| **HC-SR04P (Radar)** | TRIG / ECHO | **GPIO 5 / GPIO 18** | 3,3V (ESP32 3V3) |
+| **5× Arctic P12 PWM PST** | PWM (Blaues Kabel) | **GPIO 19** | 12V (Netzteil direkt) |
+| **LM2596 Step-Down** | IN / OUT | Eingang 12V &rarr; Ausgang 5,0V | Speist ESP32 `VIN` |
 | **Hardware-Taster** | Signal gegen GND | **GPIO 15** | Interner Pullup (`INPUT_PULLUP`) |
 
-> [!IMPORTANT]
-> Alle Masseleitungen (12V-Netzteil, LM2596 Ein-/Ausgang, ESP32 GND, MOSFET GND und Sensoren) müssen zwingend als **Common Ground** miteinander verbunden sein.
+> [!NOTE]
+> **Kein MOSFET erforderlich:** Durch die Arctic PST-Technologie werden alle 5 Lüfter hintereinander zusammengesteckt. Ein einziges PWM-Kabel steuert alle 5 Lüfter stufenlos direkt vom ESP32 aus.
 
 ---
 
@@ -38,11 +36,11 @@ Ein intelligenter persönlicher Schreibtisch-Verdunstungskühler (Personal Spot-
 ```
 ├── .gitignore
 ├── platformio.ini       # PlatformIO Projekt-Konfiguration
-├── PROJECT_CONTEXT.md   # Detaillierte technische Spezifikation für KIs
-├── README.md            # Projektübersicht
+├── PROJECT_CONTEXT.md   # Detaillierte Spezifikation als Single Source of Truth
+├── README.md            # Projektübersicht & Physik
 ├── simulator.html       # Lokaler interaktiver Simulator (im Browser ausführbar)
 └── src/
-    └── main.cpp         # Vollständige Firmware mit Web-App & REST-API
+    └── main.cpp         # Vollständige Firmware mit Dual-DHT22, Watt-Berechnung & Web-App
 ```
 
 ---
@@ -50,11 +48,11 @@ Ein intelligenter persönlicher Schreibtisch-Verdunstungskühler (Personal Spot-
 ## Verwendung
 
 ### 1. Vorab-Simulation im Browser
-Die Datei [`simulator.html`](./simulator.html) kann ohne Programmieraufwand direkt in jedem Webbrowser geöffnet werden, um die Steuerungslogik mit virtuellen Reglern interaktiv zu testen.
+Öffne [`simulator.html`](./simulator.html) direkt mit einem Doppelklick in deinem Browser, um den Leistungs- und Laufzeitverlauf über 6 Schulstunden interaktiv zu simulieren.
 
 ### 2. Flashen auf den ESP32
-Mit [PlatformIO](https://platformio.org/) in VS Code / Antigravity öffnen und den Upload starten:
+Mit PlatformIO:
 ```bash
 pio run -t upload
 ```
-Nach dem Start spannt der ESP32 den Access Point **`SmartCooler-MINT`** (Passwort: `12345678`) auf. Im Browser unter `http://192.168.4.1` öffnet sich das Steuerungs-Dashboard.
+Der ESP32 spannt den Hotspot **`SmartCooler-MINT`** (Passwort: `12345678`) auf. Im Browser unter `http://192.168.4.1` öffnet sich das Steuerungs-Dashboard.

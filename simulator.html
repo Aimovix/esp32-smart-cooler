@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Desk-Cooler – Interaktiver Simulator</title>
+    <title>12V-Eisbox-Klimaanlage – Simulator</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: #0b0f19; color: #f1f5f9; padding: 24px 16px; display: flex; justify-content: center; }
-        .app-container { width: 100%; max-width: 520px; }
+        .app-container { width: 100%; max-width: 540px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .header h1 { font-size: 1.35rem; font-weight: 700; color: #38bdf8; }
         .status-pill { background: #1e293b; padding: 5px 12px; border-radius: 9999px; font-size: 0.75rem; border: 1px solid #22c55e; color: #4ade80; font-weight: 600; }
@@ -20,8 +20,9 @@
 
         .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
         .metric-card { background: #131d2e; border: 1px solid #1e293b; border-radius: 12px; padding: 14px; }
+        .metric-card.highlight { border-color: #0284c7; background: #0c1e38; }
         .metric-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px; }
-        .metric-value { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
+        .metric-value { font-size: 1.5rem; font-weight: 700; color: #f8fafc; }
         .metric-sub { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
 
         .slider-box { background: #131d2e; border: 1px solid #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
@@ -30,21 +31,23 @@
         .slider-group label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 8px; color: #cbd5e1; }
         .slider-group span.val { color: #38bdf8; font-weight: 700; }
         input[type=range] { width: 100%; height: 6px; border-radius: 3px; background: #334155; outline: none; -webkit-appearance: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #38bdf8; cursor: pointer; }
 
         .oled-container { background: #000; border: 2px solid #334155; border-radius: 10px; padding: 14px; font-family: "Courier New", Courier, monospace; font-size: 0.85rem; line-height: 1.45; color: #38bdf8; margin-bottom: 20px; box-shadow: inset 0 0 10px rgba(56, 189, 248, 0.15); }
         .oled-line { white-space: pre; }
 
-        .toggle-btn { width: 100%; padding: 12px; border: 1px solid #334155; border-radius: 8px; font-weight: 600; font-size: 0.9rem; background: #1e293b; color: #94a3b8; cursor: pointer; transition: 0.2s; }
-        .toggle-btn.on { background: #0284c7; color: #fff; border-color: #38bdf8; }
-        .alert-box { background: #451a03; border: 1px solid #b45309; color: #fde68a; padding: 10px; border-radius: 8px; font-size: 0.8rem; margin-top: 10px; display: none; }
+        .alert-box { background: #450a0a; border: 1px solid #dc2626; color: #fecaca; padding: 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 20px; font-weight: 600; display: none; }
     </style>
 </head>
 <body>
     <div class="app-container">
         <div class="header">
-            <h1>Smart Desk-Cooler</h1>
+            <h1>12V-Eisbox-Klimaanlage</h1>
             <div class="status-pill">SIMULATOR AKTIV</div>
+        </div>
+
+        <div class="alert-box" id="ice-alert">
+            WARNUNG: Flaschen-Eis geschmolzen! Kaltluft-Differenz unter 1,0 K. Bitte Flaschen tauschen!
         </div>
 
         <div class="mode-toggle">
@@ -52,148 +55,138 @@
             <button class="mode-btn" id="btn-manual" onclick="switchMode('manual')">Manuell / App</button>
         </div>
 
-        <div class="section-label">1. Sensoren & Umgebung (Simuliert)</div>
+        <div class="section-label">1. Parameter & Umgebung</div>
         <div class="slider-box">
             <div class="slider-group">
-                <label><span>Raumtemperatur (DHT22)</span><span class="val" id="disp-temp">25.0 °C</span></label>
-                <input type="range" id="sim-temp" min="18" max="34" step="0.5" value="25" oninput="runSim()">
+                <label><span>Gefrorene 1,5L-PET-Flaschen</span><span class="val" id="disp-bottles">6 Stk. (9,0 kg Eismasse)</span></label>
+                <input type="range" id="sim-bottles" min="2" max="10" step="1" value="6" oninput="runSim()">
             </div>
             <div class="slider-group">
-                <label><span>Luftfeuchtigkeit (DHT22)</span><span class="val" id="disp-hum">56 %</span></label>
-                <input type="range" id="sim-hum" min="30" max="85" step="1" value="56" oninput="runSim()">
+                <label><span>Lüfter-PWM (5x Arctic P12)</span><span class="val" id="disp-fan">70 %</span></label>
+                <input type="range" id="sim-fan" min="0" max="100" step="5" value="70" oninput="runSim()">
             </div>
             <div class="slider-group">
-                <label><span>Schreibtisch-Abstand (HC-SR04P)</span><span class="val" id="disp-dist">50 cm</span></label>
-                <input type="range" id="sim-dist" min="10" max="150" step="5" value="50" oninput="runSim()">
+                <label><span>Raumtemperatur im Klassenzimmer</span><span class="val" id="disp-temp">28.0 °C</span></label>
+                <input type="range" id="sim-temp" min="20" max="36" step="0.5" value="28" oninput="runSim()">
+            </div>
+            <div class="slider-group">
+                <label><span>Abstand zum Pult (HC-SR04P)</span><span class="val" id="disp-dist">60 cm</span></label>
+                <input type="range" id="sim-dist" min="10" max="150" step="5" value="60" oninput="runSim()">
             </div>
         </div>
 
-        <div class="section-label">2. Aktuelle System-Werte</div>
+        <div class="section-label">2. Thermodynamik & Messwerte</div>
         <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Präsenz-Status</div>
-                <div class="metric-value" id="val-presence">Anwesend</div>
-                <div class="metric-sub" id="val-presence-sub">Abstand &le; 80 cm</div>
+            <div class="metric-card highlight">
+                <div class="metric-label">Aktuelle Kälteleistung</div>
+                <div class="metric-value" id="val-power">273 W</div>
+                <div class="metric-sub" id="val-cap">Kapazität: 990 Wh</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Lüfter-Leistung</div>
-                <div class="metric-value" id="val-fan">70 %</div>
-                <div class="metric-sub" id="val-rpm">ca. 1260 RPM</div>
+                <div class="metric-label">Ausblastemperatur</div>
+                <div class="metric-value" id="val-temp-out">25.6 °C</div>
+                <div class="metric-sub" id="val-delta">&Delta;T: -2.4 K zur Luft</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Ultraschall-Nebler</div>
-                <div class="metric-value" id="val-mist">EIN</div>
-                <div class="metric-sub">113 kHz Piezo</div>
+                <div class="metric-label">Luftdurchsatz</div>
+                <div class="metric-value" id="val-airflow">333 m³/h</div>
+                <div class="metric-sub" id="val-fan-sub">5x P12 (70 %)</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">Tropenhaus-Sperre</div>
-                <div class="metric-value" id="val-lock">Inaktiv</div>
-                <div class="metric-sub">Sperre ab 65% rF</div>
+                <div class="metric-label">Kühldauer</div>
+                <div class="metric-value" id="val-duration">4.8 Std.</div>
+                <div class="metric-sub" id="val-real-hours">Schulstunden (3.6 h real)</div>
             </div>
         </div>
 
-        <div id="manual-box" style="display: none; margin-bottom: 20px;">
-            <div class="section-label">3. App / Manuelle Steuerung</div>
-            <div class="slider-box">
-                <div class="slider-group">
-                    <label><span>Manuelle Lüfter-Leistung</span><span class="val" id="disp-man-fan">70 %</span></label>
-                    <input type="range" id="man-fan" min="0" max="100" value="70" oninput="runSim()">
-                </div>
-                <button class="toggle-btn on" id="man-mist-btn" onclick="toggleManMist()">Nebler: EIN</button>
-            </div>
-        </div>
-
-        <div class="section-label">4. Physisches 0.96" OLED Display (128x64)</div>
+        <div class="section-label">3. 0.96" OLED Hardware-Monitor (128x64)</div>
         <div class="oled-container">
-            <div class="oled-line" id="oled-1">MODUS: AUTO   DTST: 50cm [DA]</div>
+            <div class="oled-line" id="oled-1">MODUS: AUTO   DTST: 60cm [DA]</div>
             <div class="oled-line">--------------------------------</div>
-            <div class="oled-line" id="oled-2">KLIMA: 25.0C | 56% rF</div>
-            <div class="oled-line" id="oled-3">LUEFTER(PWM): 70% (1260)</div>
-            <div class="oled-line" id="oled-4">NEBLER(MOSF): EIN</div>
+            <div class="oled-line" id="oled-2">IN:28.0C -> OUT:25.6C</div>
+            <div class="oled-line" id="oled-3">5x P12: 70% (333m3/h)</div>
+            <div class="oled-line" id="oled-4">LEISTUNG: 273 WATT</div>
             <div class="oled-line">--------------------------------</div>
-            <div class="oled-line" id="oled-5">SMART-KUEHLUNG AKTIV</div>
+            <div class="oled-line" id="oled-5">STATUS: OK (DT: -2.4K)</div>
         </div>
-        <div class="alert-box" id="tropen-alert">Tropenhaus-Sperre aktiv (>65% rF)! Nebler zwangsabgeschaltet.</div>
     </div>
 
     <script>
         let mode = 'auto';
-        let manMist = true;
 
         function switchMode(m) {
             mode = m;
             document.getElementById('btn-auto').classList.toggle('active', m === 'auto');
             document.getElementById('btn-manual').classList.toggle('active', m === 'manual');
-            document.getElementById('manual-box').style.display = m === 'manual' ? 'block' : 'none';
-            runSim();
-        }
-
-        function toggleManMist() {
-            manMist = !manMist;
-            const btn = document.getElementById('man-mist-btn');
-            btn.classList.toggle('on', manMist);
-            btn.innerText = manMist ? 'Nebler: EIN' : 'Nebler: AUS';
             runSim();
         }
 
         function runSim() {
-            const temp = parseFloat(document.getElementById('sim-temp').value);
-            const hum = parseInt(document.getElementById('sim-hum').value);
+            const bottles = parseInt(document.getElementById('sim-bottles').value);
+            let fanPercent = parseInt(document.getElementById('sim-fan').value);
+            const tempIn = parseFloat(document.getElementById('sim-temp').value);
             const dist = parseInt(document.getElementById('sim-dist').value);
 
-            document.getElementById('disp-temp').innerText = temp.toFixed(1) + ' °C';
-            document.getElementById('disp-hum').innerText = hum + ' %';
+            const iceMassKg = bottles * 1.5;
+            // Schmelzwärme: 333 kJ/kg = 333.000 J/kg / 3600 = ca. 92.5 Wh/kg
+            // Mit Vorunterkühlung auf -10°C (spez. Wärme Eis: 2.1 kJ/kg*K): ca. 110 Wh/kg
+            const totalWh = Math.round(iceMassKg * 110);
+
+            document.getElementById('disp-bottles').innerText = bottles + ' Stk. (' + iceMassKg.toFixed(1) + ' kg Eismasse)';
+            document.getElementById('disp-temp').innerText = tempIn.toFixed(1) + ' °C';
             document.getElementById('disp-dist').innerText = dist + ' cm';
 
             const present = dist <= 80;
-            const tropenLock = hum > 65;
-
-            document.getElementById('val-presence').innerText = present ? 'Anwesend' : 'Abwesend';
-            document.getElementById('val-presence-sub').innerText = present ? 'Abstand <= 80 cm' : 'Standby (> 80 cm)';
-            document.getElementById('val-lock').innerText = tropenLock ? 'AKTIV' : 'Inaktiv';
-            document.getElementById('val-lock').style.color = tropenLock ? '#f87171' : '#f8fafc';
-            document.getElementById('tropen-alert').style.display = tropenLock ? 'block' : 'none';
-
-            let fanPwm = 0;
-            let mistActive = false;
-            let statusText = '';
 
             if (mode === 'auto') {
                 if (!present) {
-                    fanPwm = 0;
-                    mistActive = false;
-                    statusText = 'STANDBY (NIEMAND DA)';
-                } else if (temp < 22) {
-                    fanPwm = 0;
-                    mistActive = false;
-                    statusText = 'TEMPERATUR < 22C (AUS)';
-                } else if (temp >= 22 && temp <= 25) {
-                    fanPwm = 50;
-                    mistActive = !tropenLock;
-                    statusText = tropenLock ? 'TROPEN-SPERRE (>65%)' : 'SMART-KUEHLUNG AKTIV';
+                    fanPercent = 0;
+                } else if (tempIn < 23) {
+                    fanPercent = 0;
+                } else if (tempIn <= 26) {
+                    fanPercent = 50;
                 } else {
-                    fanPwm = Math.min(100, Math.round(80 + (temp - 25) * 4));
-                    mistActive = !tropenLock;
-                    statusText = tropenLock ? 'TROPEN-SPERRE (>65%)' : 'BOOST-KUEHLUNG AKTIV';
+                    fanPercent = Math.min(100, Math.round(70 + (tempIn - 26) * 5));
                 }
-            } else {
-                fanPwm = parseInt(document.getElementById('man-fan').value);
-                document.getElementById('disp-man-fan').innerText = fanPwm + ' %';
-                mistActive = manMist && !tropenLock;
-                statusText = tropenLock ? 'TROPEN-SPERRE (>65%)' : 'MANUELL / APP-STEUERUNG';
+                document.getElementById('sim-fan').value = fanPercent;
+            }
+            document.getElementById('disp-fan').innerText = fanPercent + ' %';
+
+            const airflowM3h = Math.round((fanPercent / 100) * 475);
+            let deltaT = 0;
+            let powerWatts = 0;
+            let tempOut = tempIn;
+
+            if (fanPercent >= 5) {
+                // Wärmetauscher-Modell: Je nach Flaschenzahl und Durchsatz
+                // Delta T sinkt leicht mit steigendem Luftstrom (weniger Verweildauer)
+                deltaT = Math.max(1.2, (bottles * 0.45) * Math.pow(400 / Math.max(airflowM3h, 100), 0.35));
+                deltaT = Math.min(deltaT, 5.5);
+                tempOut = tempIn - deltaT;
+
+                const massFlowKgS = (airflowM3h / 3600) * 1.2;
+                powerWatts = Math.round(massFlowKgS * 1005 * deltaT);
             }
 
-            const rpm = Math.round((fanPwm * 1800) / 100);
-            document.getElementById('val-fan').innerText = fanPwm + ' %';
-            document.getElementById('val-rpm').innerText = fanPwm < 5 ? '0 RPM (0-dB Modus)' : 'ca. ' + rpm + ' RPM';
-            document.getElementById('val-mist').innerText = mistActive ? 'EIN' : 'AUS';
+            const realHours = powerWatts > 0 ? (totalWh / powerWatts) : 0;
+            const schoolPeriods = realHours * (60 / 45); // 45 Min pro Schulstunde
+
+            document.getElementById('val-power').innerText = powerWatts + ' W';
+            document.getElementById('val-cap').innerText = 'Kapazität: ' + totalWh + ' Wh';
+            document.getElementById('val-temp-out').innerText = tempOut.toFixed(1) + ' °C';
+            document.getElementById('val-delta').innerText = 'ΔT: -' + deltaT.toFixed(1) + ' K zur Luft';
+            document.getElementById('val-airflow').innerText = airflowM3h + ' m³/h';
+            document.getElementById('val-fan-sub').innerText = '5x Arctic P12 (' + fanPercent + ' %)';
+
+            document.getElementById('val-duration').innerText = realHours > 0 ? schoolPeriods.toFixed(1) + ' Std.' : '--';
+            document.getElementById('val-real-hours').innerText = realHours > 0 ? 'Schulstunden (' + realHours.toFixed(1) + ' h real)' : 'Lüfter inaktiv';
 
             // OLED Rendering
-            document.getElementById('oled-1').innerText = (mode === 'auto' ? 'MODUS: AUTO   ' : 'MODUS: MANUELL') + 'DTST: ' + dist + 'cm ' + (present ? '[DA]' : '[WFG]');
-            document.getElementById('oled-2').innerText = 'KLIMA: ' + temp.toFixed(1) + 'C | ' + hum + '% rF';
-            document.getElementById('oled-3').innerText = 'LUEFTER(PWM): ' + fanPwm + '% (' + rpm + ')';
-            document.getElementById('oled-4').innerText = 'NEBLER(MOSF): ' + (tropenLock ? 'SPERRE' : (mistActive ? 'EIN' : 'AUS'));
-            document.getElementById('oled-5').innerText = statusText;
+            document.getElementById('oled-1').innerText = (mode === 'auto' ? 'MODUS: AUTO   ' : 'MODUS: MANUELL ') + 'DTST: ' + dist + 'cm ' + (present ? '[DA]' : '[WFG]');
+            document.getElementById('oled-2').innerText = 'IN:' + tempIn.toFixed(1) + 'C -> OUT:' + tempOut.toFixed(1) + 'C';
+            document.getElementById('oled-3').innerText = '5x P12: ' + fanPercent + '% (' + airflowM3h + 'm3/h)';
+            document.getElementById('oled-4').innerText = 'LEISTUNG: ' + powerWatts + ' WATT';
+            document.getElementById('oled-5').innerText = !present && mode === 'auto' ? 'STANDBY (ABWESEND)' : 'STATUS: OK (DT: -' + deltaT.toFixed(1) + 'K)';
         }
 
         runSim();

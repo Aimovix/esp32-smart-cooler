@@ -1,16 +1,15 @@
-# Projekt-Kontext: Smart Desk-Cooler (ESP32 MINT-Projekt)
+# Projekt-Kontext: Smart Classroom Ice-Box AC (ESP32 MINT-Projekt)
 
-Dieses Dokument dient als zentrale Wissensbasis (Single Source of Truth) für Entwickler und KIs.
+Dieses Dokument ist die zentrale Wissensbasis (Single Source of Truth) für Entwickler und KIs.
 
 ---
 
 ## 1. Systemübersicht & Physik
-Ein kompakter Schreibtisch-Verdunstungskühler (Personal Spot-Cooler), gesteuert durch einen ESP32 NodeMCU.
-* **Kühlprinzip:** Ein 120-mm-PC-Lüfter saugt Luft an und bläst sie an einer Ultraschall-Piezoscheibe vorbei. Das zerstäubte Wasser verdunstet im Luftstrom und kühlt die Haut (Verdampfungsenthalpie + Windchill).
-* **Sicherheits- & Sparfunktionen:** 
-  * Ultraschall-Präsenzerkennung: Schaltet in den Standby, wenn niemand am Schreibtisch sitzt (> 80 cm).
-  * Tropenhaus-Sperre: Schaltet den Nebler ab > 65 % relativer Luftfeuchtigkeit ab, um Schwüle und Kondenswasser zu verhindern.
-* **Bedienung:** Dual – über Hardware-Taster am Gehäuse und über WLAN (Web-App / REST-API).
+Eine mobile 12V-Klimabox (Ice-Box Heat Exchanger) für den Klassenraum, gesteuert durch ein ESP32 NodeMCU Board.
+* **Kühlprinzip:** 5 kaskadierte Arctic P12 PWM PST Lüfter pressen bis zu 475 m³/h warme Raumluft durch eine isolierte Thermobox (40–60 Liter), in der 6 bis 8 gefrorene 1,5L-PET-Flaschen als Wärmetauscher stehen. Die Luft kühlt sich an den Flaschenoberflächen trocken ab und tritt als Kaltluftstrom aus.
+* **Keine Luftbefeuchtung:** Anders als bei Verdunstungskühlern steigt die Luftfeuchtigkeit im Klassenraum nicht an. Feuchtigkeit aus der Raumluft kondensiert an den kalten Flaschenoberflächen und wird in der dichten Wanne der Box gesammelt.
+* **Echte Kälteleistung (ca. 250–350 Watt):** Ausreichend für 4 bis 6 Schulstunden spürbare Kaltluft-Versorgung.
+* **Live-Thermodynamik:** Zwei DHT22-Sensoren erfassen $T_{\text{Raum}}$ (Einlass) und $T_{\text{Kalt}}$ (Auslass). Der ESP32 berechnet live die Kälteleistung in Watt und erkennt automatisch, wenn das Eis geschmolzen ist.
 
 ---
 
@@ -18,10 +17,10 @@ Ein kompakter Schreibtisch-Verdunstungskühler (Personal Spot-Cooler), gesteuert
 
 | Schiene | Quelle | Verbraucher / Last |
 | :--- | :--- | :--- |
-| **12V DC** | 12V / 2A Netzteil | Arctic P12 PWM (VCC & GND) + LM2596 Step-Down Eingang |
-| **5V DC** | LM2596 Ausgang (auf 5,0V kalibriert) | ESP32 (`VIN`), Piezo-Zerstäuberplatine (über MOSFET) |
-| **3,3V DC** | ESP32 (`3V3` Pin) | 0.96" I2C OLED (SSD1306), DHT22, HC-SR04P |
-| **GND** | **Common Ground** | Alle GND-Anschlüsse (12V, 5V, 3,3V, ESP32, Lüfter, MOSFET) zwingend verbunden |
+| **12V DC** | 12V / 3A Steckernetzteil (36 W) | 5× Arctic P12 PWM PST Lüfter (ca. 0,6–0,8 A Gesamtstrom) + LM2596 Eingang |
+| **5V DC** | LM2596 Ausgang (präzise auf 5,0V eingestellt) | ESP32 (`VIN`-Pin) |
+| **3,3V DC** | ESP32 (`3V3`-Pin) | 0.96" I2C OLED (SSD1306), 2× DHT22, HC-SR04P |
+| **GND** | **Common Ground** | 12V-Netzteil, LM2596, ESP32 GND und Lüfter-Masse zwingend verbunden |
 
 ---
 
@@ -31,55 +30,42 @@ Ein kompakter Schreibtisch-Verdunstungskühler (Personal Spot-Cooler), gesteuert
 | :--- | :--- | :--- | :--- |
 | **I2C SDA** | OLED SDA | **GPIO 21** | 3,3V Logik (Standard Hardware I2C) |
 | **I2C SCL** | OLED SCL | **GPIO 22** | 3,3V Logik (Standard Hardware I2C) |
-| **DHT22 Data** | Sensor DATA | **GPIO 4** | 10kΩ Pull-Up zu 3,3V |
-| **HC-SR04P TRIG** | Trigger | **GPIO 5** | 3,3V Ausgangsimpuls (10 µs) |
-| **HC-SR04P ECHO** | Echo | **GPIO 18** | **Muss 3,3V sein** (HC-SR04P / RCWL-9610) |
-| **Lüfter PWM** | Arctic P12 Pin 4 (Blau) | **GPIO 19** | 25 kHz PWM-Frequenz (0–100 % Duty Cycle) |
-| **Nebler Gate** | D4184 / LR7843 Gate | **GPIO 23** | 3,3V Digital Output (HIGH = Ein, LOW = Aus) |
-| **Hardware-Taster** | Taster gegen GND | **GPIO 15** | Interner Pull-Up (`INPUT_PULLUP`), entprellt |
+| **DHT22 #1 Data** | Einlass (Raumklima) | **GPIO 4** | 10kΩ Pull-Up zu 3,3V |
+| **DHT22 #2 Data** | Auslass (Kaltluft) | **GPIO 16** | 10kΩ Pull-Up zu 3,3V |
+| **HC-SR04P TRIG** | Trigger | **GPIO 5** | 3,3V Impuls (10 µs) |
+| **HC-SR04P ECHO** | Echo | **GPIO 18** | **Muss 3,3V-Version sein (HC-SR04P / RCWL-9610)** |
+| **Lüfter PWM** | 5× Arctic P12 PST (Blau) | **GPIO 19** | 25 kHz PWM-Signal (0–100 % Duty Cycle) |
+| **Hardware-Taster** | Signal gegen GND | **GPIO 15** | Interner Pullup (`INPUT_PULLUP`), entprellt |
+
+*Hinweis zum Arctic PST-System:* Alle 5 Lüfter werden über die integrierten PST-Stecker kaskadiert (Daisy-Chain). Es wird nur **ein einziges PWM-Kabel** an GPIO 19 und **ein einziges Massekabel** zum gemeinsamen GND geführt. Es wird **kein MOSFET** benötigt.
 
 ---
 
-## 4. Hardware-Constraints (Nicht verändern)
-1. **MOSFET-Wahl:** Ausschließlich 3,3V-Logic-Level-MOSFETs (D4184, LR7843, AOD4184). Niemals IRF520 (schaltet erst ab 5–10V).
-2. **Lüfter-Steuerung:** Arctic P12 PWM besitzt einen 0-dB-Modus. Bei einem PWM-Signal < 5 % schaltet der Motor intern komplett ab. Es wird kein separater MOSFET für den Lüfter benötigt.
-3. **Zerstäuber-Taster:** Günstige 5V-Piezo-Boards haben einen Standby-Taster. Dieser muss auf der Platine gebrückt sein, damit das Modul sofort nebelt, wenn der MOSFET 5V durchschaltet.
-4. **Feuchtigkeitsschutz:** Die Piezo-Platte sitzt außen **vor** dem Auslassgitter des Lüfters. Der Nebel darf keinesfalls ins Gehäuse gesaugt werden.
+## 4. Berechnungsformel Kälteleistung (Thermodynamik)
+
+Der ESP32 berechnet die thermische Kälteleistung $P$ bei jedem Sensorzyklus:
+
+$$P = \dot{m} \cdot c_p \cdot (T_{\text{Einlass}} - T_{\text{Auslass}})$$
+
+* $\dot{V}_{\max} = 5 \times 95\,\text{m}^3\text{/h} = 475\,\text{m}^3\text{/h}$
+* $\dot{V} = \frac{\text{pwmPercent}}{100} \cdot 475\,\text{m}^3\text{/h}$
+* Luftdichte $\rho \approx 1{,}20\,\text{kg/m}^3$, Spezifische Wärmekapazität $c_p \approx 1005\,\text{J/(kg}\cdot\text{K)}$
+* Massenstrom: $\dot{m} = \frac{\dot{V}}{3600} \cdot \rho$
+* Wenn $\Delta T = (T_{\text{Einlass}} - T_{\text{Auslass}}) \le 1{,}0\,\text{K}$ bei laufendem Lüfter:  
+  **Status `ICE_EMPTY = true` &rarr; Alarm: „Eis geschmolzen – Flaschen wechseln!“**
 
 ---
 
-## 5. Steuerlogik & State Machine
+## 5. Betriebsmodi & Profile
 
-### A. Betriebsmodi (`systemMode`)
+### A. Taster-Profile (Zyklus via GPIO 15)
+1. **Smart-Auto:** Regelt Lüfterdrehzahl nach Raumtemperatur; stoppt bei Abwesenheit (>80 cm für >2 Min.).
+2. **Unterrichts-Flüstermodus:** 50 % PWM (ca. 240 m³/h, extrem leise, <20 dB).
+3. **Pausen-Turbo:** 100 % PWM (475 m³/h maximaler Durchsatz zum Schnellabkühlen).
+4. **Aus:** 0 % PWM (Lüfter stehen im 0-dB-Modus).
 
-#### 1. `MODE_AUTO` (Automatik)
-* **Präsenzerkennung:**
-  * Abstand $\le 80\text{ cm}$: Benutzer anwesend.
-  * Abstand $> 80\text{ cm}$ für mehr als 2 Minuten: Umschaltung in `STANDBY` (Lüfter 0 %, Nebler AUS).
-* **Temperatur-Kurve (wenn anwesend):**
-  * $T < 22^\circ\text{C}$: Lüfter 0 %, Nebler AUS.
-  * $22^\circ\text{C} \le T \le 25^\circ\text{C}$: Lüfter 50 % PWM, Nebler AN (sofern $rF \le 65\%$).
-  * $T > 25^\circ\text{C}$: Lüfter 80–100 % PWM, Nebler AN (sofern $rF \le 65\%$).
-* **Tropenhaus-Sperre:**
-  * $rF > 65\%$: Nebler zwingend AUS. Lüfter läuft weiter zur Luftzirkulation.
-  * Hysterese: Nebler reaktiviert erst wieder bei $rF \le 60\%$.
-
-#### 2. `MODE_MANUAL` (App / Direkteingabe)
-* Manuelle Sollwerte für Lüfter-PWM (0–100 %) und Nebler (AN / AUS).
-* Tropenhaus-Sperre bleibt als Sicherheitswächter aktiv (oder warnt).
-
-#### 3. Taster-Profile (Zyklus bei Tastendruck am Gehäuse)
-`1. Smart-Auto` $\rightarrow$ `2. Nur Lüfter (50 %)` $\rightarrow$ `3. Max Boost (100 % + Nebel)` $\rightarrow$ `4. Aus`
-
----
-
-## 6. Software-Architektur (ESP32)
-
-* **Framework:** Arduino / PlatformIO
-* **Keine blockierenden Aufrufe:** Kein `delay()`. Alle Tasks (Sensorabfrage, Display-Aktualisierung, PWM, Webserver) laufen über `millis()`-Timer.
-* **WLAN & Webserver:**
-  * ESP32 startet als Access Point (`SmartCooler-MINT`, IP `192.168.4.1`) und verbindet sich optional mit dem Heim-WLAN.
-  * REST-Endpunkte:
-    * `GET /api/status`: Liefert JSON (`temp`, `humidity`, `distance`, `fan_pwm`, `mist_state`, `mode`, `presence`).
-    * `POST /api/control`: Setzt Parameter (`mode`, `fan_pwm`, `mist_state`).
-  * Web-Dashboard: Im Flash-Speicher des ESP32 hinterlegt (Responsive HTML/CSS/JS).
+### B. Web-App / REST-API
+* ESP32 spannt eigenen Hotspot auf: `SmartCooler-MINT` (192.168.4.1)
+* Endpunkte:
+  * `GET /api/status`: JSON mit `temp_in`, `hum_in`, `temp_out`, `hum_out`, `power_watt`, `fan_pwm`, `ice_empty`, `mode`.
+  * `GET /api/control`: Parameter `mode` (auto/manual), `fan` (0–100).
